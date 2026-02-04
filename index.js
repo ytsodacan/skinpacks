@@ -1,13 +1,12 @@
 // index.js
-// Robust, DOM-ready version with null checks to avoid "Cannot read properties of null" errors.
-// Expects the HTML to include elements with the same IDs used below.
-// If an element is missing, the script will skip attaching listeners rather than throwing.
+// Single-file, robust marketplace + viewer script.
+// Uses explicit CDN module URLs (no bare "three" specifier) and guards against missing DOM elements.
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/controls/OrbitControls.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Element references (may be null if HTML is missing an element)
+  // DOM references (may be null if HTML is missing elements)
   const marketplaceEl = document.getElementById('marketplace');
   const viewerPanel = document.getElementById('viewerPanel');
   const viewerTitle = document.getElementById('viewerTitle');
@@ -21,23 +20,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const thumbnailsEl = document.getElementById('thumbnails');
   const searchInput = document.getElementById('search');
 
-  // Basic guards: if essential containers are missing, stop early with a console warning.
-  if (!marketplaceEl) {
-    console.warn('index.js: #marketplace element not found — marketplace will not render.');
-  }
-  if (!canvasContainer) {
-    console.warn('index.js: #canvas-container element not found — viewer will not initialize.');
-  }
+  // Warn if critical containers are missing
+  if (!marketplaceEl) console.warn('index.js: #marketplace not found — marketplace will not render.');
+  if (!canvasContainer) console.warn('index.js: #canvas-container not found — viewer will not initialize.');
 
   let skinpacks = [];
   let currentPack = null;
   let currentIndex = 0;
 
-  // --- Load skins.json ---
+  // Load skins.json
   async function loadSkins() {
     try {
       const res = await fetch('skins.json', { cache: 'no-store' });
-      if (!res.ok) throw new Error('skins.json not found');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       skinpacks = await res.json();
       if (marketplaceEl) renderMarketplace(skinpacks);
     } catch (err) {
@@ -48,11 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- Marketplace rendering ---
+  // Render marketplace cards
   function renderMarketplace(packs) {
     if (!marketplaceEl) return;
     marketplaceEl.innerHTML = '';
-    if (!packs || packs.length === 0) {
+    if (!Array.isArray(packs) || packs.length === 0) {
       marketplaceEl.innerHTML = '<p style="color:var(--muted);padding:18px">No skinpacks found.</p>';
       return;
     }
@@ -61,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const card = document.createElement('article');
       card.className = 'card';
       card.innerHTML = `
-        <div class="preview" data-preview-index="0"></div>
+        <div class="preview" data-preview-index="0" aria-hidden="true"></div>
         <div>
           <h3>${escapeHtml(pack.name)}</h3>
           <p>${escapeHtml(pack.description || '')}</p>
@@ -76,14 +71,14 @@ document.addEventListener('DOMContentLoaded', () => {
       marketplaceEl.appendChild(card);
 
       const previewEl = card.querySelector('.preview');
-      if (previewEl && pack.skins && pack.skins.length) {
+      if (previewEl && Array.isArray(pack.skins) && pack.skins.length) {
         createSmallPreview(previewEl, pack.skins, { autoplay: true, interval: 1800 });
       } else if (previewEl) {
         previewEl.textContent = 'No skins';
       }
     });
 
-    // Attach listeners safely
+    // Attach view listeners (safe)
     marketplaceEl.querySelectorAll('.view-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const idx = Number(e.currentTarget.dataset.index);
@@ -92,25 +87,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- Small preview renderer per card ---
+  // Small preview renderer per card (cycles through skins)
   function createSmallPreview(containerEl, skins, opts = {}) {
     if (!containerEl) return;
-    const w = Math.max(120, containerEl.clientWidth || 160);
-    const h = Math.max(80, containerEl.clientHeight || 120);
+    const baseW = Math.max(160, containerEl.clientWidth || 160);
+    const baseH = Math.max(120, containerEl.clientHeight || 120);
 
     const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(w, h);
+    renderer.setSize(baseW, baseH);
     containerEl.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(45, baseW / baseH, 0.1, 1000);
     camera.position.set(0, 1.6, 3);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enablePan = false;
-    controls.enableZoom = false;
-    controls.enableRotate = false;
+    controls.enablePan = false; controls.enableZoom = false; controls.enableRotate = false;
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.9));
     const dir = new THREE.DirectionalLight(0xffffff, 0.6);
@@ -162,7 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     animate();
 
-    // autoplay cycle
     if (opts.autoplay) {
       loadSkin(idx);
       intervalId = setInterval(() => {
@@ -173,13 +165,13 @@ document.addEventListener('DOMContentLoaded', () => {
       loadSkin(0);
     }
 
-    // click opens viewer for this pack and selects current index
+    // clicking preview opens viewer for this pack and selects current index
     containerEl.addEventListener('click', () => {
       const packIdx = skinpacks.findIndex(p => p.skins === skins || (p.skins && arraysEqualByPng(p.skins, skins)));
       if (packIdx >= 0) openViewer(skinpacks[packIdx], idx);
     });
 
-    // cleanup observer
+    // cleanup when removed
     const observer = new MutationObserver(() => {
       if (!document.body.contains(containerEl)) {
         clearInterval(intervalId);
@@ -190,15 +182,14 @@ document.addEventListener('DOMContentLoaded', () => {
     observer.observe(document.body, { childList: true, subtree: true });
 
     new ResizeObserver(() => {
-      const nw = containerEl.clientWidth || w;
-      const nh = containerEl.clientHeight || h;
+      const nw = Math.max(48, containerEl.clientWidth || baseW);
+      const nh = Math.max(48, containerEl.clientHeight || baseH);
       renderer.setSize(nw, nh);
       camera.aspect = nw / nh;
       camera.updateProjectionMatrix();
     }).observe(containerEl);
   }
 
-  // helper to compare arrays by png url (fallback when references differ)
   function arraysEqualByPng(a, b) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
@@ -207,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return true;
   }
 
-  // --- Viewer renderer (single, larger) ---
+  // Viewer (single renderer)
   let viewerRenderer = null;
   let viewerScene = null;
   let viewerCamera = null;
@@ -218,7 +209,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function initViewerRenderer() {
     if (!canvasContainer) return;
-    // clear previous
     canvasContainer.innerHTML = '';
 
     viewerRenderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
@@ -253,6 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     mainGroup = new THREE.Group();
     viewerScene.add(mainGroup);
 
+    // placeholder mesh so viewer isn't empty
     const geometry = new THREE.BoxGeometry(1, 2, 0.5);
     const cubeMesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0x999999 }));
     cubeMesh.position.y = 1;
@@ -300,7 +291,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Build a simple multi-part model and apply the skin texture
   function buildViewerModelFromSkin(url) {
     if (!mainGroup || !texLoader) return;
-    // clear previous children
     while (mainGroup.children.length) mainGroup.remove(mainGroup.children[0]);
 
     const headGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
@@ -314,18 +304,12 @@ document.addEventListener('DOMContentLoaded', () => {
         tex.flipY = false;
         tex.encoding = THREE.sRGBEncoding;
         const texturedMat = new THREE.MeshStandardMaterial({ map: tex });
-        const head = new THREE.Mesh(headGeo, texturedMat);
-        head.position.set(0, 1.9, 0);
-        const body = new THREE.Mesh(bodyGeo, texturedMat);
-        body.position.set(0, 1.0, 0);
-        const leftArm = new THREE.Mesh(armGeo, texturedMat);
-        leftArm.position.set(-0.7, 1.05, 0);
-        const rightArm = new THREE.Mesh(armGeo, texturedMat);
-        rightArm.position.set(0.7, 1.05, 0);
-        const leftLeg = new THREE.Mesh(legGeo, texturedMat);
-        leftLeg.position.set(-0.2, -0.2, 0);
-        const rightLeg = new THREE.Mesh(legGeo, texturedMat);
-        rightLeg.position.set(0.2, -0.2, 0);
+        const head = new THREE.Mesh(headGeo, texturedMat); head.position.set(0, 1.9, 0);
+        const body = new THREE.Mesh(bodyGeo, texturedMat); body.position.set(0, 1.0, 0);
+        const leftArm = new THREE.Mesh(armGeo, texturedMat); leftArm.position.set(-0.7, 1.05, 0);
+        const rightArm = new THREE.Mesh(armGeo, texturedMat); rightArm.position.set(0.7, 1.05, 0);
+        const leftLeg = new THREE.Mesh(legGeo, texturedMat); leftLeg.position.set(-0.2, -0.2, 0);
+        const rightLeg = new THREE.Mesh(legGeo, texturedMat); rightLeg.position.set(0.2, -0.2, 0);
 
         mainGroup.add(head, body, leftArm, rightArm, leftLeg, rightLeg);
       },
@@ -338,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   }
 
-  // --- Viewer controls: open pack, populate thumbnails, navigate ---
+  // Viewer controls
   function openViewer(pack, startIndex = 0) {
     currentPack = pack;
     currentIndex = startIndex || 0;
@@ -419,8 +403,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loop();
 
     new ResizeObserver(() => {
-      const nw = containerEl.clientWidth || w;
-      const nh = containerEl.clientHeight || h;
+      const nw = Math.max(48, containerEl.clientWidth || w);
+      const nh = Math.max(48, containerEl.clientHeight || h);
       r.setSize(nw, nh);
       c.aspect = nw / nh;
       c.updateProjectionMatrix();
@@ -437,7 +421,6 @@ document.addEventListener('DOMContentLoaded', () => {
     buildViewerModelFromSkin(skin.png);
   }
 
-  // Prev/Next safe attachments
   if (prevSkinBtn) {
     prevSkinBtn.addEventListener('click', () => {
       if (!currentPack) return;
@@ -461,7 +444,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (active) active.classList.add('active');
   }
 
-  // Search input safe attachment
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
       const q = e.target.value.trim().toLowerCase();
@@ -480,7 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .replaceAll("'", '&#039;');
   }
 
-  // Initialize
+  // Start
   loadSkins();
 
   // Ensure viewer resizes correctly
