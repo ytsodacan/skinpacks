@@ -1,12 +1,11 @@
 // index.js
-// Single-file, robust marketplace + viewer script.
-// Uses explicit CDN module URLs (no bare "three" specifier) and guards against missing DOM elements.
+// Single-file marketplace + viewer script that uses explicit CDN module URLs.
+// Avoids bare specifiers like "three" so browsers won't try to resolve them relatively.
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/controls/OrbitControls.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // DOM references (may be null if HTML is missing elements)
   const marketplaceEl = document.getElementById('marketplace');
   const viewerPanel = document.getElementById('viewerPanel');
   const viewerTitle = document.getElementById('viewerTitle');
@@ -20,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const thumbnailsEl = document.getElementById('thumbnails');
   const searchInput = document.getElementById('search');
 
-  // Warn if critical containers are missing
   if (!marketplaceEl) console.warn('index.js: #marketplace not found — marketplace will not render.');
   if (!canvasContainer) console.warn('index.js: #canvas-container not found — viewer will not initialize.');
 
@@ -28,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentPack = null;
   let currentIndex = 0;
 
-  // Load skins.json
   async function loadSkins() {
     try {
       const res = await fetch('skins.json', { cache: 'no-store' });
@@ -43,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Render marketplace cards
   function renderMarketplace(packs) {
     if (!marketplaceEl) return;
     marketplaceEl.innerHTML = '';
@@ -78,7 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Attach view listeners (safe)
     marketplaceEl.querySelectorAll('.view-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const idx = Number(e.currentTarget.dataset.index);
@@ -87,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Small preview renderer per card (cycles through skins)
   function createSmallPreview(containerEl, skins, opts = {}) {
     if (!containerEl) return;
     const baseW = Math.max(160, containerEl.clientWidth || 160);
@@ -165,13 +159,11 @@ document.addEventListener('DOMContentLoaded', () => {
       loadSkin(0);
     }
 
-    // clicking preview opens viewer for this pack and selects current index
     containerEl.addEventListener('click', () => {
       const packIdx = skinpacks.findIndex(p => p.skins === skins || (p.skins && arraysEqualByPng(p.skins, skins)));
       if (packIdx >= 0) openViewer(skinpacks[packIdx], idx);
     });
 
-    // cleanup when removed
     const observer = new MutationObserver(() => {
       if (!document.body.contains(containerEl)) {
         clearInterval(intervalId);
@@ -198,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return true;
   }
 
-  // Viewer (single renderer)
+  // Viewer renderer
   let viewerRenderer = null;
   let viewerScene = null;
   let viewerCamera = null;
@@ -243,7 +235,6 @@ document.addEventListener('DOMContentLoaded', () => {
     mainGroup = new THREE.Group();
     viewerScene.add(mainGroup);
 
-    // placeholder mesh so viewer isn't empty
     const geometry = new THREE.BoxGeometry(1, 2, 0.5);
     const cubeMesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0x999999 }));
     cubeMesh.position.y = 1;
@@ -288,7 +279,6 @@ document.addEventListener('DOMContentLoaded', () => {
     viewerRenderer.render(viewerScene, viewerCamera);
   }
 
-  // Build a simple multi-part model and apply the skin texture
   function buildViewerModelFromSkin(url) {
     if (!mainGroup || !texLoader) return;
     while (mainGroup.children.length) mainGroup.remove(mainGroup.children[0]);
@@ -322,7 +312,6 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   }
 
-  // Viewer controls
   function openViewer(pack, startIndex = 0) {
     currentPack = pack;
     currentIndex = startIndex || 0;
@@ -452,7 +441,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Utility: escape HTML
   function escapeHtml(s = '') {
     return String(s)
       .replaceAll('&', '&amp;')
@@ -462,10 +450,8 @@ document.addEventListener('DOMContentLoaded', () => {
       .replaceAll("'", '&#039;');
   }
 
-  // Start
   loadSkins();
 
-  // Ensure viewer resizes correctly
   window.addEventListener('resize', () => {
     if (viewerRenderer) onViewerResize();
   });
