@@ -27,7 +27,7 @@ async function loadSkins() {
     skinpacks = await res.json();
     renderMarketplace(skinpacks);
   } catch (err) {
-    marketplaceEl.innerHTML = `<div style="padding:24px;color:#f88">Error loading skins.json: ${err.message}</div>`;
+    marketplaceEl.innerHTML = `<div style="padding:24px;color:#f88">Error loading skins: ${err.message}</div>`;
     console.error(err);
   }
 }
