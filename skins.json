@@ -1,1 +1,39 @@
+[
+  {
+    "name": "Unstable Skin Pack",
+    "description": "it's all yours.",
+    "location": "skinpacks/unstable-skinpack.mcaddon",
+    "preview": "/skinpacks/unstable/Wemmbu_preview.png",
+    "skins": [
+      {
+        "name": "Wemmbu",
+        "png": "/skinpacks/unstable/Wemmbu.png"
+      },
+      {
+        "name": "ParrotX2",
+        "png": "/skinpacks/unstable/ParrotX2.png"
+      },
+      {
+        "name": "TheobaldTheBird",
+        "png": "/skinpacks/unstable/TheobaldTheBird.png"
+      }
+    ]
+  },
+  {
+    "name": "Classic Heroes Pack",
+    "description": "Classic hero skins remastered for modern Minecraft.",
+    "location": "skinpacks/classic-heroes.mcaddon",
+    "preview": "/skinpacks/classic-heroes/Heroes_preview.png",
+    "skins": [
+      {
+        "name": "Brave Knight",
+        "png": "/skinpacks/classic-heroes/BraveKnight.png"
+      },
+      {
+        "name": "Forest Ranger",
+        "png": "/skinpacks/classic-heroes/ForestRanger.png"
+      }
+    ]
+  }
+]
 
