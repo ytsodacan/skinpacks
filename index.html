@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Skinpacks Marketplace</title>
   <link rel="stylesheet" href="index.css" />
-  <!-- Three.js and OrbitControls from CDN -->
-  <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
   <header class="site-header">
@@ -17,48 +14,43 @@
     </div>
   </header>
 
-  <main class="container">
-    <section class="marketplace" id="marketplace">
-      <!-- Marketplace cards injected here -->
-    </section>
+  <main class="main-grid">
+    <section class="marketplace" id="marketplace" aria-live="polite"></section>
+
+    <aside class="viewer-panel" id="viewerPanel" aria-hidden="true">
+      <div class="viewer-top">
+        <div class="viewer-title">
+          <h2 id="viewerTitle">Select a pack</h2>
+          <div class="pack-meta" id="packMeta"></div>
+        </div>
+        <a id="downloadPack" class="download-btn" href="#" download>
+          <span class="icon">⬇</span>
+          <span class="text">Download Pack</span>
+        </a>
+      </div>
+
+      <div id="canvas-container" class="canvas-container">
+        <!-- Three renderer canvas appended here -->
+      </div>
+
+      <div class="viewer-controls">
+        <button id="prevSkin" class="arrow">◀</button>
+        <div class="slide-info">
+          <div id="skinName" class="skin-name"></div>
+          <div id="skinIndex" class="skin-index"></div>
+        </div>
+        <button id="nextSkin" class="arrow">▶</button>
+      </div>
+
+      <div class="viewer-thumbs" id="thumbnails" role="list"></div>
+    </aside>
   </main>
-
-  <!-- Viewer modal -->
-  <div id="viewerModal" class="viewer-modal hidden" aria-hidden="true">
-    <div class="viewer-card">
-      <button id="closeViewer" class="close-btn" title="Close viewer">✕</button>
-
-      <div class="viewer-header">
-        <h2 id="viewerTitle">Skinpack Viewer</h2>
-        <div class="pack-info">
-          <a id="downloadPack" class="download-link" href="#" download>Download pack</a>
-        </div>
-      </div>
-
-      <div class="viewer-body">
-        <div id="threeContainer" class="three-container"></div>
-
-        <div class="carousel-controls">
-          <button id="prevSkin" class="arrow">◀</button>
-          <div class="slide-info">
-            <div id="skinName" class="skin-name"></div>
-            <div id="skinIndex" class="skin-index"></div>
-          </div>
-          <button id="nextSkin" class="arrow">▶</button>
-        </div>
-      </div>
-
-      <div class="viewer-footer">
-        <div class="thumbnails" id="thumbnails"></div>
-      </div>
-    </div>
-  </div>
 
   <footer class="site-footer">
     <small>Built for Minecraft skinpacks • skins.json driven marketplace</small>
   </footer>
 
+  <!-- Three.js and helpers (module) -->
   <script type="module" src="index.js"></script>
 </body>
 </html>
-
