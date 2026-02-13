@@ -1,4 +1,3 @@
-// index.js - Cleaned and optimized for Import Maps
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
@@ -12,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const prevSkinBtn = document.getElementById('prevSkin');
   const nextSkinBtn = document.getElementById('nextSkin');
   const skinNameEl = document.getElementById('skinName');
-  const skinIndexEl = document.indexElement = document.getElementById('skinIndex');
+  const skinIndexEl = document.getElementById('skinIndex');
   const thumbnailsEl = document.getElementById('thumbnails');
   const searchInput = document.getElementById('search');
 
@@ -29,86 +28,82 @@ document.addEventListener('DOMContentLoaded', () => {
       if (marketplaceEl) renderMarketplace(skinpacks);
     } catch (err) {
       console.error('Failed to load skins.json:', err);
-      if (marketplaceEl) {
-        marketplaceEl.innerHTML = `<div style="padding:24px;color:#f88">Error: ${escapeHtml(err.message)}</div>`;
-      }
     }
   }
 
-  // --- 2. MARKETPLACE RENDERER ---
+  // --- 2. THREE.JS UV & PART UTILITIES ---
+  function getSkinMat(img, x, y, w, h) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, x, y, w, h, 0, 0, w, h);
+    const t = new THREE.CanvasTexture(c);
+    t.magFilter = THREE.NearestFilter;
+    t.flipY = false;
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 1, transparent: true });
+  }
+
+  function createPart(img, w, h, d, uv, pos, overlayUv) {
+    const partGroup = new THREE.Group();
+    const depthExtrusion = 0.12; // Matches your "Architect" default
+
+    // Correct BoxGeometry UV Order: Right, Left, Top, Bottom, Front, Back
+    const mats = [
+      getSkinMat(img, uv.x + d + w, uv.y + d, d, h),     // Right
+      getSkinMat(img, uv.x, uv.y + d, d, h),             // Left
+      getSkinMat(img, uv.x + d, uv.y, w, d),             // Top
+      getSkinMat(img, uv.x + d + w, uv.y, w, d),         // Bottom
+      getSkinMat(img, uv.x + d, uv.y + d, w, h),         // Front
+      getSkinMat(img, uv.x + d * 2 + w, uv.y + d, w, h)  // Back
+    ];
+
+    const base = new THREE.Mesh(new THREE.BoxGeometry(w / 8, h / 8, d / 8), mats);
+    partGroup.add(base);
+
+    // Voxelized Overlay Logic
+    if (overlayUv) {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = img.width; tempCanvas.height = img.height;
+      const tCtx = tempCanvas.getContext('2d');
+      tCtx.drawImage(img, 0, 0);
+      const data = tCtx.getImageData(overlayUv.x + d, overlayUv.y + d, w, h).data;
+      
+      for (let i = 0; i < (w * h); i++) {
+        if (data[i * 4 + 3] > 20) {
+          const vox = new THREE.Mesh(
+            new THREE.BoxGeometry(1.1 / 8, 1.1 / 8, depthExtrusion),
+            new THREE.MeshStandardMaterial({ 
+              color: new THREE.Color(`rgb(${data[i * 4]},${data[i * 4 + 1]},${data[i * 4 + 2]})`), 
+              roughness: 1 
+            })
+          );
+          let px = i % w, py = Math.floor(i / w);
+          vox.position.set((px / 8) - (w / 16) + 0.0625, (h / 16) - (py / 8) - 0.0625, (d / 16) + (depthExtrusion / 2));
+          partGroup.add(vox);
+        }
+      }
+    }
+    partGroup.position.set(pos.x, pos.y, pos.z);
+    return partGroup;
+  }
+
+  // --- 3. MARKETPLACE RENDERER ---
   function renderMarketplace(packs) {
     if (!marketplaceEl) return;
     marketplaceEl.innerHTML = '';
-    
     packs.forEach((pack, packIdx) => {
       const card = document.createElement('article');
       card.className = 'card';
       card.innerHTML = `
-        <div class="preview" style="height:160px; background:#1a1a1a; cursor:pointer"></div>
+        <div class="preview" style="height:180px; background:#1a1a1a; cursor:pointer"></div>
         <div style="padding:12px">
           <h3>${escapeHtml(pack.name)}</h3>
-          <p style="font-size:0.9rem; color:#aaa">${escapeHtml(pack.description || '')}</p>
-          <div style="display:flex; justify-content:between; align-items:center; margin-top:10px">
-            <span style="font-size:0.8rem">${pack.skins ? pack.skins.length : 0} skins</span>
-            <button class="btn view-btn" data-index="${packIdx}">View Pack</button>
-          </div>
+          <button class="btn view-btn" data-index="${packIdx}">View Pack</button>
         </div>
       `;
       marketplaceEl.appendChild(card);
-
-      const previewEl = card.querySelector('.preview');
-      if (previewEl && pack.skins?.length) {
-        createSmallPreview(previewEl, pack.skins, { autoplay: true });
-      }
-
       card.querySelector('.view-btn').onclick = () => openViewer(pack);
     });
-  }
-
-  // --- 3. THREE.JS HELPERS ---
-  function createSmallPreview(container, skins, opts = {}) {
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(container.clientWidth || 200, 160);
-    container.appendChild(renderer.domElement);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, (container.clientWidth || 200) / 160, 0.1, 100);
-    camera.position.set(0, 1.5, 3.5);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 1));
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(1, 1.8, 0.5),
-      new THREE.MeshStandardMaterial({ color: 0x444444 })
-    );
-    mesh.position.y = 1;
-    scene.add(mesh);
-
-    const loader = new THREE.TextureLoader();
-    let idx = 0;
-
-    const updateTexture = (i) => {
-      if (!skins[i]?.png) return;
-      loader.load(skins[i].png, (tex) => {
-        tex.magFilter = THREE.NearestFilter; // Minecraft-style pixel art
-        mesh.material.map = tex;
-        mesh.material.needsUpdate = true;
-      });
-    };
-
-    updateTexture(0);
-    if (opts.autoplay) {
-      setInterval(() => {
-        idx = (idx + 1) % skins.length;
-        updateTexture(idx);
-      }, 2000);
-    }
-
-    function anim() {
-      mesh.rotation.y += 0.01;
-      renderer.render(scene, camera);
-      requestAnimationFrame(anim);
-    }
-    anim();
   }
 
   // --- 4. VIEWER LOGIC ---
@@ -116,18 +111,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function initViewerRenderer() {
     if (viewerRenderer) return;
-    viewerRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    viewerRenderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
     viewerRenderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
     canvasContainer.appendChild(viewerRenderer.domElement);
 
     viewerScene = new THREE.Scene();
     viewerCamera = new THREE.PerspectiveCamera(45, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
-    viewerCamera.position.set(0, 1.5, 4);
+    viewerCamera.position.set(4, 3, 6);
 
     viewerControls = new OrbitControls(viewerCamera, viewerRenderer.domElement);
     viewerControls.enableDamping = true;
+    viewerControls.target.set(0, 0, 0);
 
-    viewerScene.add(new THREE.AmbientLight(0xffffff, 1));
+    viewerScene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    const dl = new THREE.DirectionalLight(0xffffff, 0.4);
+    dl.position.set(5, 5, 5);
+    viewerScene.add(dl);
+
     mainGroup = new THREE.Group();
     viewerScene.add(mainGroup);
 
@@ -141,31 +141,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function buildViewerModelFromSkin(url) {
     if (!mainGroup) return;
-    mainGroup.clear(); // Clean previous model
+    mainGroup.clear();
 
-    const loader = new THREE.TextureLoader();
-    loader.load(url, (tex) => {
-      tex.magFilter = THREE.NearestFilter;
-      const mat = new THREE.MeshStandardMaterial({ map: tex, transparent: true });
-
-      // Basic Minecraft Humanoid Shape
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), mat);
-      head.position.y = 2.0;
-      
-      const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.4), mat);
-      body.position.y = 1.0;
-
-      mainGroup.add(head, body);
-    });
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      // Assemble full Minecraft body with Architect coordinates
+      mainGroup.add(createPart(img, 8, 8, 8, { x: 0, y: 0 }, { x: 0, y: 1.5, z: 0 }, { x: 32, y: 0 })); // Head
+      mainGroup.add(createPart(img, 8, 12, 4, { x: 16, y: 16 }, { x: 0, y: 0.25, z: 0 }, { x: 16, y: 32 })); // Torso
+      mainGroup.add(createPart(img, 4, 12, 4, { x: 40, y: 16 }, { x: -0.75, y: 0.25, z: 0 }, { x: 40, y: 32 })); // R Arm
+      mainGroup.add(createPart(img, 4, 12, 4, { x: 32, y: 48 }, { x: 0.75, y: 0.25, z: 0 }, { x: 48, y: 48 })); // L Arm
+      mainGroup.add(createPart(img, 4, 12, 4, { x: 0, y: 16 }, { x: -0.25, y: -1.25, z: 0 }, { x: 0, y: 32 })); // R Leg
+      mainGroup.add(createPart(img, 4, 12, 4, { x: 16, y: 48 }, { x: 0.25, y: -1.25, z: 0 }, { x: 0, y: 48 })); // L Leg
+    };
+    img.src = url;
   }
 
   function openViewer(pack, startIndex = 0) {
     currentPack = pack;
     currentIndex = startIndex;
     if (viewerTitle) viewerTitle.textContent = pack.name;
-    if (viewerPanel) viewerPanel.style.display = 'block';
-    if (downloadPack) downloadPack.href = pack.location;
-
+    if (viewerPanel) viewerPanel.style.display = 'flex';
     initViewerRenderer();
     showSkinAt(currentIndex);
   }
@@ -173,11 +169,22 @@ document.addEventListener('DOMContentLoaded', () => {
   function showSkinAt(i) {
     const skin = currentPack.skins[i];
     if (skinNameEl) skinNameEl.textContent = skin.name;
+    if (skinIndexEl) skinIndexEl.textContent = `${i + 1} / ${currentPack.skins.length}`;
     buildViewerModelFromSkin(skin.png);
   }
 
+  // --- 5. EVENT LISTENERS ---
+  if (prevSkinBtn) prevSkinBtn.onclick = () => {
+    currentIndex = (currentIndex - 1 + currentPack.skins.length) % currentPack.skins.length;
+    showSkinAt(currentIndex);
+  };
+  if (nextSkinBtn) nextSkinBtn.onclick = () => {
+    currentIndex = (currentIndex + 1) % currentPack.skins.length;
+    showSkinAt(currentIndex);
+  };
+
   function escapeHtml(s) {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return s ? s.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : '';
   }
 
   loadSkins();
